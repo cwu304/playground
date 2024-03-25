@@ -5,3 +5,6 @@ duckduckgo-search
 anthropic>=0.3.0
 trubrics>=1.4.3
 streamlit-feedback
+pandas>=2.2.1
+google-api-python-client>=2.123.0
+google-generativeai>=0.4.1
