@@ -8,6 +8,7 @@ from langchain.tools import DuckDuckGoSearchRun
 import google.generativeai as genai
 import googleapiclient.discovery
 import pandas as pd
+from youtube_transcript_api import YouTubeTranscriptApi
 import json
 
 
@@ -15,12 +16,14 @@ with st.sidebar:
     google_api_key = st.text_input(
         "Google API Key", key="google_api_key", type="password"
     )
-    "Get Google API key for Youtube and Gemini"
+    "Get Google API key for Youtube and Gemini. You can get one here for free: https://console.cloud.google.com"
 with st.sidebar:
     youtube_max_results = st.number_input(
         "Max results in Youtube", 1
     )
     "Top N results in Youtube search. suggest < 50"
+with st.sidebar:
+    final_summary_text_length = st.slider('The words limit for the final summary', 100, 1000, 300)
 
 # for openAi
 
@@ -34,14 +37,19 @@ with st.sidebar:
 
 st.title("🔎 Chat with Youtube")
 
+# """
+# In this example, we're using `StreamlitCallbackHandler` to display the thoughts and actions of an agent in an interactive Streamlit app.
+# Try more LangChain 🤝 Streamlit Agent examples at [github.com/langchain-ai/streamlit-agent](https://github.com/langchain-ai/streamlit-agent).
+# """
+
 """
-In this example, we're using `StreamlitCallbackHandler` to display the thoughts and actions of an agent in an interactive Streamlit app.
-Try more LangChain 🤝 Streamlit Agent examples at [github.com/langchain-ai/streamlit-agent](https://github.com/langchain-ai/streamlit-agent).
+In this example, we will summarize the videos from Youtube search results. The summary is based on title, description, captions if available. We will show summary for each video first. Then show a comprehensive summary for all videos. 
 """
+
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = [
-        {"role": "assistant", "content": "Hi, I'm a chatbot who can search the Youtube. Input the query for Youtube, I will help you to summarize the trend"}
+        {"role": "assistant", "content": "Hi, I'm a chatbot who can search the Youtube. Input the query for Youtube, I will help you to summarize the content."}
     ]
 
 for msg in st.session_state.messages:
@@ -54,7 +62,7 @@ if prompt := st.chat_input(placeholder="E.g. Top stocks"):
 
     # Check key
     if not google_api_key:
-        st.info("Please add your Google API key to continue.")
+        st.info("Please add your Google API key to continue. You can get one here for free: https://console.cloud.google.com")
         st.stop()
 
     # RAG: Get Youtube search result 
@@ -80,40 +88,59 @@ if prompt := st.chat_input(placeholder="E.g. Top stocks"):
 
     # print(youtube_response)
     # json_string = json.dumps(youtube_response, indent=4, sort_keys=True)
-    # print(json_string)
-
+    # st.write(json_string)
     
     # save in dataframe, so we can look at it as the source
     video_info = {
         'videoId':[],
         'title':[],
-        'description':[]
+        'description':[],
+        'captions':[]
     }
 
     for item in youtube_response['items']:
       try:
         video_info['videoId'].append(item['id']['videoId'])
-        video_info['title'].append(item['snippet']['title'])
-        video_info['description'].append(item['snippet']['description'])
+        # st.write("videoId: " + item['id']['videoId'] )
+        video_info['title'].append(item['snippet']['title'] or "empty")
+        # st.write("Title: " + item['snippet']['title'])
+        video_info['description'].append(item['snippet']['description'] or "empty")
+        # get En caption
+        captions_concat = ""
+        try:
+            captions_str = YouTubeTranscriptApi.get_transcript(item['id']['videoId'] ,languages=['en'])
+            captions_concat = ','.join([item['text'] for item in captions_str])
+        except:
+            pass
+        # st.write(captions_concat)
+        video_info['captions'].append(captions_concat)    
       except:
             pass
 
+    # st.write(video_info)
     video_df = pd.DataFrame(data=video_info)
-    # video_df.style.set_properties(**{'text-align': 'left'})
-    # print(video_df)
-    # result which will be used as input to llm.
-    youtube_result = ' '.join(video_df.apply(lambda row: "Video Title: \"" + row['title'] +  "\". Video description: \"" + row['description'] + "\".", axis=1))
+    st.write("Raw data:")
+    st.write(video_df)
 
+    st.write("Call LLM....wait a second...")
+    # Prepare a string content which will be used as input to llm.
+    youtube_result = ' '.join(video_df.apply(lambda row: "Video Title: \"" + row['title'] +  "\". Video description: \"" + row['description'] + "\". Video captions: \"" + row['captions'] + "\".", axis=1))
 
+    
     # Call LM to summarize 
     # instruction = "You are a crypto expert"
-    query = "Help me summarize these content: " + youtube_result
-
+    query_each = "Help me summarize these content: " + youtube_result
     genai.configure(api_key=google_api_key)
     model = genai.GenerativeModel('gemini-pro')
+    response_each = model.generate_content(query_each)
+    st.title("Summary of each video: ")
+    st.write(response_each.text)
 
-    response = model.generate_content(query)
-
-    # print(response.text)
-    st.write("Youtube search result: "+youtube_result[:100] + "...")
-    st.write(response.text)
+    # prompt
+    summary_text_length_str = str(final_summary_text_length)
+    query_all = "Given a list of videos on the, provide a comprehensive summary of the key themes, ideas, and insights covered across all the videos as a whole. Please consolidate the information into one cohesive paragraph which is less than " + summary_text_length_str + " words, focusing on the overarching concepts rather than detailing each video separately. The content: " + youtube_result
+    genai.configure(api_key=google_api_key)
+    model = genai.GenerativeModel('gemini-pro')
+    response_all = model.generate_content(query_all)
+    st.title("Summary of all of these videos in less than " + summary_text_length_str + " words: ")
+    st.write(response_all.text)
