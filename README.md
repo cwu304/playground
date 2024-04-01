@@ -10,16 +10,18 @@ This app showcases a growing collection of LLM minimum working examples.
 
 Current examples include:
 
-- Chatbot
-- File Q&A
-- Chat with Internet search
-- LangChain Quickstart
-- LangChain PromptTemplate
-- Chat with user feedback
+- Chatbot with open AI
+- Chat with youtube
 
+More example:
+https://github.com/streamlit/llm-examples/tree/main
 ## Demo App
+This App: https://trend-analyzer.streamlit.app
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://llm-examples.streamlit.app/)
+More example: [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://llm-examples.streamlit.app/)
+
+### Get an Google API key
+https://console.cloud.google.com
 
 ### Get an OpenAI API key
 
@@ -46,5 +48,5 @@ OPENAI_API_KEY='xxxxxxxxxx'
 virtualenv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run Chatbot.py
+streamlit run 0_Chat_with_youtube.py
 ```
